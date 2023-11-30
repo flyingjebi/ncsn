@@ -151,7 +151,7 @@ class AnnealRunner():
                 optimizer.step()
 
                 tb_logger.add_scalar('loss', loss, global_step=step)
-                logger_loss.append([loss, step])
+                logger_loss.append([loss.cpu(), step.cpu()])
                 logging.info("step: {}, loss: {}".format(step, loss.item()))
 
                 if step >= self.config.training.n_iters:
@@ -176,7 +176,7 @@ class AnnealRunner():
                         test_dsm_loss = anneal_dsm_score_estimation(score, test_X, test_labels, sigmas,
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
-                    data = logger_loss.cpu()
+                    data = logger_loss
                     x_values, y_values = zip(*data)
                     plt.plot(x_values, y_values, marker='o')
                     plt.xlabel('X-axis label')

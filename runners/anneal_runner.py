@@ -7,6 +7,7 @@ import logging
 import torch
 import os
 import shutil
+import matplotlib.pyplot as plt
 import tensorboardX
 import torch.optim as optim
 from torchvision.datasets import MNIST, CIFAR10, SVHN
@@ -41,6 +42,9 @@ class AnnealRunner():
         return torch.log(image) - torch.log1p(-image)
 
     def train(self):
+        logger_loss = []
+
+        # whether execute horizontal flip
         if self.config.data.random_flip is False:
             tran_transform = test_transform = transforms.Compose([
                 transforms.Resize(self.config.data.image_size),
@@ -56,7 +60,7 @@ class AnnealRunner():
                 transforms.Resize(self.config.data.image_size),
                 transforms.ToTensor()
             ])
-
+        # load data
         if self.config.data.dataset == 'CIFAR10':
             dataset = CIFAR10(os.path.join(self.args.run, 'datasets', 'cifar10'), train=True, download=True,
                               transform=tran_transform)
@@ -67,7 +71,6 @@ class AnnealRunner():
                             transform=tran_transform)
             test_dataset = MNIST(os.path.join(self.args.run, 'datasets', 'mnist_test'), train=False, download=True,
                                  transform=test_transform)
-
         elif self.config.data.dataset == 'CELEBA':
             if self.config.data.random_flip:
                 dataset = CelebA(root=os.path.join(self.args.run, 'datasets', 'celeba'), split='train',
@@ -91,14 +94,13 @@ class AnnealRunner():
                                       transforms.Resize(self.config.data.image_size),
                                       transforms.ToTensor(),
                                   ]), download=True)
-
         elif self.config.data.dataset == 'SVHN':
             dataset = SVHN(os.path.join(self.args.run, 'datasets', 'svhn'), split='train', download=True,
                            transform=tran_transform)
             test_dataset = SVHN(os.path.join(self.args.run, 'datasets', 'svhn_test'), split='test', download=True,
                                 transform=test_transform)
-
-        dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, num_workers=4)
+        
+        dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, num_workers=2)
         test_loader = DataLoader(test_dataset, batch_size=self.config.training.batch_size, shuffle=True,
                                  num_workers=4, drop_last=True)
 
@@ -149,6 +151,7 @@ class AnnealRunner():
                 optimizer.step()
 
                 tb_logger.add_scalar('loss', loss, global_step=step)
+                logger_loss.append([loss, step])
                 logging.info("step: {}, loss: {}".format(step, loss.item()))
 
                 if step >= self.config.training.n_iters:
@@ -172,8 +175,14 @@ class AnnealRunner():
                     with torch.no_grad():
                         test_dsm_loss = anneal_dsm_score_estimation(score, test_X, test_labels, sigmas,
                                                                     self.config.training.anneal_power)
-
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
+                    data = logger_loss
+                    x_values, y_values = zip(*data)
+                    plt.plot(x_values, y_values, marker='o')
+                    plt.xlabel('X-axis label')
+                    plt.ylabel('Y-axis label')
+                    plt.title('Your Graph Title')
+                    plt.show()
 
                 if step % self.config.training.snapshot_freq == 0:
                     states = [

@@ -151,7 +151,7 @@ class AnnealRunner():
                 optimizer.step()
 
                 tb_logger.add_scalar('loss', loss, global_step=step)
-                logger_loss.append([loss.detach().numpy(), step])
+                logger_loss.append([loss.cpu().detach().numpy(), step])
                 logging.info("step: {}, loss: {}".format(step, loss.item()))
 
                 if step >= self.config.training.n_iters:

@@ -37,7 +37,7 @@ def parse_args_and_config():
             config = yaml.load(f)
         new_config = dict2namespace(config)
     else:
-        with open(os.path.join(args.log, 'config.yml'), 'r') as f:
+        with open(os.path.join(args.log, '/content/ncsn/config.yml'), 'r') as f:
             config = yaml.load(f)
         new_config = config
 

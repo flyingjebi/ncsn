@@ -182,7 +182,8 @@ class AnnealRunner():
                     plt.xlabel('X-axis label')
                     plt.ylabel('Y-axis label')
                     plt.title('Your Graph Title')
-                    plt.show()
+                    plot_path = os.path.join(self.args.log, 'plot_{}.png'.format(step))
+                    plt.savefig(plot_path)
 
                 if step % self.config.training.snapshot_freq == 0:
                     states = [

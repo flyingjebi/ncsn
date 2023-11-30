@@ -177,7 +177,7 @@ class AnnealRunner():
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
                     data = logger_loss
-                    x_values, y_values = zip(*data)
+                    y_values, x_values = zip(*data)
                     plt.plot(x_values, y_values, marker='o')
                     plt.xlabel('X-axis label')
                     plt.ylabel('Y-axis label')

@@ -153,7 +153,7 @@ class AnnealRunner():
                 optimizer.step()
 
                 tb_logger.add_scalar('loss', loss, global_step=step)
-                logging_loss.append([loss.cpu().detach().numpy(), step])
+                logging_loss.append([step, loss.cpu().detach().numpy()])
                 logging.info("step: {}, loss: {}".format(step, loss.item()))
 
                 if step >= self.config.training.n_iters:
@@ -178,7 +178,7 @@ class AnnealRunner():
                         test_dsm_loss = anneal_dsm_score_estimation(score, test_X, test_labels, sigmas,
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
-                    y_values, x_values = zip(*logging_loss)
+                    x_values, y_values = zip(*logging_loss)
                     plt.plot(x_values, y_values, marker='o')
                     plt.xlabel('X-axis label')
                     plt.ylabel('Y-axis label')
@@ -187,8 +187,7 @@ class AnnealRunner():
                     plt.savefig(plot_path)
                     # save csv file
                     with open('logging_loss', 'w', newline='') as csvfile:
-                        fieldnames = logging_loss[0].keys()
-                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                        writer = csv.writer(csvfile)
                         writer.writeheader()
                         for row in logging_loss:
                             writer.writerow(row)

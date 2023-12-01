@@ -42,6 +42,9 @@ class AnnealRunner():
         image = lam + (1 - 2 * lam) * image
         return torch.log(image) - torch.log1p(-image)
 
+    def logging(self):
+        return
+
     def train(self):
         logging_loss = []
 
@@ -186,7 +189,8 @@ class AnnealRunner():
                     plot_path = os.path.join(self.args.log, 'plot_{}.png'.format(step))
                     plt.savefig(plot_path)
                     # save csv file
-                    with open(self.args.log, 'logging_loss', 'w', newline='') as csvfile:
+                    csv_path = os.path.join(self.args.log, 'logging_loss.csv')
+                    with open(csv_path, 'w', newline='') as csvfile:
                         writer = csv.writer(csvfile)
                         for row in logging_loss:
                             writer.writerow(row)

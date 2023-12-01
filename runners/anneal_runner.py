@@ -57,6 +57,41 @@ class AnnealRunner():
             for row in loss:
                 writer.writerow(row)
 
+    def test(self):
+
+
+        if not os.path.exists(self.args.image_folder):
+            os.makedirs(self.args.image_folder)
+
+        sigmas = np.exp(np.linspace(np.log(self.config.model.sigma_begin), np.log(self.config.model.sigma_end),
+                                    self.config.model.num_classes))
+
+        score.eval()
+        grid_size = 5
+
+        imgs = []
+
+        samples = torch.rand(grid_size ** 2, 3, 32, 32, device=self.config.device)
+
+        all_samples = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)
+
+        for i, sample in enumerate(tqdm.tqdm(all_samples, total=len(all_samples), desc='saving images')):
+            sample = sample.view(grid_size ** 2, self.config.data.channels, self.config.data.image_size,
+                                    self.config.data.image_size)
+
+            if self.config.data.logit_transform:
+                sample = torch.sigmoid(sample)
+
+            image_grid = make_grid(sample, nrow=grid_size)
+            if i % 10 == 0:
+                im = Image.fromarray(image_grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy())
+                imgs.append(im)
+
+            save_image(image_grid, os.path.join(self.args.image_folder, 'image_{}.png'.format(i)), nrow=10)
+            torch.save(sample, os.path.join(self.args.image_folder, 'image_raw_{}.pth'.format(i)))
+
+        imgs[0].save(os.path.join(self.args.image_folder, "movie.gif"), save_all=True, append_images=imgs[1:], duration=1, loop=0)
+
     def train(self):
         logging_loss = []
         #1. whether execute horizontal flip
@@ -138,14 +173,14 @@ class AnnealRunner():
             states = torch.load(os.path.join(self.args.log, 'checkpoint.pth'))
             score.load_state_dict(states[0])
             optimizer.load_state_dict(states[1])
-
+        
+        #6. default settings
         step = 0
-
         sigmas = torch.tensor(
             np.exp(np.linspace(np.log(self.config.model.sigma_begin), np.log(self.config.model.sigma_end),
                                self.config.model.num_classes))).float().to(self.config.device)
 
-
+        #7. training
         for epoch in range(self.config.training.n_epochs):
             for i, (X, y) in enumerate(dataloader):
                 step += 1
@@ -172,7 +207,7 @@ class AnnealRunner():
 
                 if step >= self.config.training.n_iters:
                     return 0
-
+                #8. evaluation
                 if step % 1000 == 0:
                     score.eval()
                     try:
@@ -193,7 +228,7 @@ class AnnealRunner():
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
                     logging(logging_loss, step)
-
+                #9. save model
                 if step % self.config.training.snapshot_freq == 0:
                     states = [
                         score.state_dict(),
@@ -236,7 +271,6 @@ class AnnealRunner():
                     #                                                          grad.abs().max()))
 
             return images
-
 
     def test(self):
         states = torch.load(os.path.join(self.args.log, 'checkpoint.pth'), map_location=self.config.device)

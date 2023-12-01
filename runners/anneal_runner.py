@@ -42,13 +42,14 @@ class AnnealRunner():
         image = lam + (1 - 2 * lam) * image
         return torch.log(image) - torch.log1p(-image)
 
-    def logging(self, loss, step):
+    def logging(self, loss):
+        # save loss plot
         x_values, y_values = zip(*loss)
         plt.plot(x_values, y_values, marker=',')
         plt.xlabel('X-axis label')
         plt.ylabel('Y-axis label')
         plt.title('Your Graph Title')
-        plot_path = os.path.join(self.args.log, 'plot_{:06}.png'.format(step))
+        plot_path = os.path.join(self.args.log, 'plot.png')
         plt.savefig(plot_path)
         # save csv file
         csv_path = os.path.join(self.args.log, 'logging_loss.csv')
@@ -57,40 +58,16 @@ class AnnealRunner():
             for row in loss:
                 writer.writerow(row)
 
-    def test(self):
+    def log_image(self, score, sigmas, step):
+        image_folder = os.path.join(self.args.log, 'images')
+        if not os.path.exists(image_folder):
+            os.makedirs(image_folder)
 
-
-        if not os.path.exists(self.args.image_folder):
-            os.makedirs(self.args.image_folder)
-
-        sigmas = np.exp(np.linspace(np.log(self.config.model.sigma_begin), np.log(self.config.model.sigma_end),
-                                    self.config.model.num_classes))
-
-        score.eval()
-        grid_size = 5
-
-        imgs = []
-
+        grid_size = 4
         samples = torch.rand(grid_size ** 2, 3, 32, 32, device=self.config.device)
-
-        all_samples = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)
-
-        for i, sample in enumerate(tqdm.tqdm(all_samples, total=len(all_samples), desc='saving images')):
-            sample = sample.view(grid_size ** 2, self.config.data.channels, self.config.data.image_size,
-                                    self.config.data.image_size)
-
-            if self.config.data.logit_transform:
-                sample = torch.sigmoid(sample)
-
-            image_grid = make_grid(sample, nrow=grid_size)
-            if i % 10 == 0:
-                im = Image.fromarray(image_grid.mul_(255).add_(0.5).clamp_(0, 255).permute(1, 2, 0).to('cpu', torch.uint8).numpy())
-                imgs.append(im)
-
-            save_image(image_grid, os.path.join(self.args.image_folder, 'image_{}.png'.format(i)), nrow=10)
-            torch.save(sample, os.path.join(self.args.image_folder, 'image_raw_{}.pth'.format(i)))
-
-        imgs[0].save(os.path.join(self.args.image_folder, "movie.gif"), save_all=True, append_images=imgs[1:], duration=1, loop=0)
+        samples_outputs = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)[0]
+        image_grid = make_grid(samples_outputs, nrow=grid_size)
+        save_image(image_grid, os.path.join(self.args.image_folder, 'image_{:4d}.png'.format(step)))
 
     def train(self):
         logging_loss = []
@@ -227,7 +204,8 @@ class AnnealRunner():
                         test_dsm_loss = anneal_dsm_score_estimation(score, test_X, test_labels, sigmas,
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
-                    logging(logging_loss, step)
+                    self.logging(logging_loss)
+                    self.log_images(score, sigmas, step)
                 #9. save model
                 if step % self.config.training.snapshot_freq == 0:
                     states = [

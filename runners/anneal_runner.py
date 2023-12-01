@@ -8,6 +8,7 @@ import torch
 import os
 import shutil
 import matplotlib.pyplot as plt
+import csv
 import tensorboardX
 import torch.optim as optim
 from torchvision.datasets import MNIST, CIFAR10, SVHN
@@ -42,9 +43,9 @@ class AnnealRunner():
         return torch.log(image) - torch.log1p(-image)
 
     def train(self):
-        logger_loss = []
+        logging_loss = []
 
-        # whether execute horizontal flip
+        #1. whether execute horizontal flip
         if self.config.data.random_flip is False:
             tran_transform = test_transform = transforms.Compose([
                 transforms.Resize(self.config.data.image_size),
@@ -60,7 +61,8 @@ class AnnealRunner():
                 transforms.Resize(self.config.data.image_size),
                 transforms.ToTensor()
             ])
-        # load data
+
+        #2. load data
         if self.config.data.dataset == 'CIFAR10':
             dataset = CIFAR10(os.path.join(self.args.run, 'datasets', 'cifar10'), train=True, download=True,
                               transform=tran_transform)
@@ -99,25 +101,25 @@ class AnnealRunner():
                            transform=tran_transform)
             test_dataset = SVHN(os.path.join(self.args.run, 'datasets', 'svhn_test'), split='test', download=True,
                                 transform=test_transform)
-        
+    
         dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, num_workers=2)
         test_loader = DataLoader(test_dataset, batch_size=self.config.training.batch_size, shuffle=True,
                                  num_workers=4, drop_last=True)
-
         test_iter = iter(test_loader)
         self.config.input_dim = self.config.data.image_size ** 2 * self.config.data.channels
 
+        #3. track parametes
         tb_path = os.path.join(self.args.run, 'tensorboard', self.args.doc)
         if os.path.exists(tb_path):
             shutil.rmtree(tb_path)
-
         tb_logger = tensorboardX.SummaryWriter(log_dir=tb_path)
+
+        #4. estimate score
         score = CondRefineNetDilated(self.config).to(self.config.device)
-
         score = torch.nn.DataParallel(score)
-
         optimizer = self.get_optimizer(score.parameters())
 
+        #5. load pretrained model weight (score, optimizer)
         if self.args.resume_training:
             states = torch.load(os.path.join(self.args.log, 'checkpoint.pth'))
             score.load_state_dict(states[0])
@@ -151,7 +153,7 @@ class AnnealRunner():
                 optimizer.step()
 
                 tb_logger.add_scalar('loss', loss, global_step=step)
-                logger_loss.append([loss.cpu().detach().numpy(), step])
+                logging_loss.append([loss.cpu().detach().numpy(), step])
                 logging.info("step: {}, loss: {}".format(step, loss.item()))
 
                 if step >= self.config.training.n_iters:
@@ -176,14 +178,20 @@ class AnnealRunner():
                         test_dsm_loss = anneal_dsm_score_estimation(score, test_X, test_labels, sigmas,
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
-                    data = logger_loss
-                    y_values, x_values = zip(*data)
+                    y_values, x_values = zip(*logging_loss)
                     plt.plot(x_values, y_values, marker='o')
                     plt.xlabel('X-axis label')
                     plt.ylabel('Y-axis label')
                     plt.title('Your Graph Title')
                     plot_path = os.path.join(self.args.log, 'plot_{}.png'.format(step))
                     plt.savefig(plot_path)
+                    # save csv file
+                    with open('logging_loss', 'w', newline='') as csvfile:
+                        fieldnames = logging_loss[0].keys()
+                        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+                        writer.writeheader()
+                        for row in logging_loss:
+                            writer.writerow(row)
 
                 if step % self.config.training.snapshot_freq == 0:
                     states = [

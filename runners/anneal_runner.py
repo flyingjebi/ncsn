@@ -186,9 +186,8 @@ class AnnealRunner():
                     plot_path = os.path.join(self.args.log, 'plot_{}.png'.format(step))
                     plt.savefig(plot_path)
                     # save csv file
-                    with open('logging_loss', 'w', newline='') as csvfile:
+                    with open(self.args.log, 'logging_loss', 'w', newline='') as csvfile:
                         writer = csv.writer(csvfile)
-                        writer.writeheader()
                         for row in logging_loss:
                             writer.writerow(row)
 

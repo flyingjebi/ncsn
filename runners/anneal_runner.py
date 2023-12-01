@@ -42,7 +42,7 @@ class AnnealRunner():
         image = lam + (1 - 2 * lam) * image
         return torch.log(image) - torch.log1p(-image)
 
-    def logging(self, loss):
+    def log_parameters(self, loss):
         # save loss plot
         x_values, y_values = zip(*loss)
         plt.plot(x_values, y_values, marker=',')
@@ -57,20 +57,26 @@ class AnnealRunner():
             writer = csv.writer(csvfile)
             for row in loss:
                 writer.writerow(row)
+        logging.info("log saved")
 
-    def log_image(self, score, sigmas, step):
+
+    def log_images(self, score, sigmas, step):
         image_folder = os.path.join(self.args.log, 'images')
         if not os.path.exists(image_folder):
             os.makedirs(image_folder)
 
         grid_size = 4
+
         samples = torch.rand(grid_size ** 2, 3, 32, 32, device=self.config.device)
         samples_outputs = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)[0]
         image_grid = make_grid(samples_outputs, nrow=grid_size)
         save_image(image_grid, os.path.join(self.args.image_folder, 'image_{:4d}.png'.format(step)))
 
+
+        
+
     def train(self):
-        logging_loss = []
+        log_loss = []
         #1. whether execute horizontal flip
         if self.config.data.random_flip is False:
             tran_transform = test_transform = transforms.Compose([
@@ -179,13 +185,13 @@ class AnnealRunner():
                 optimizer.step()
 
                 tb_logger.add_scalar('loss', loss, global_step=step)
-                logging_loss.append([step, loss.cpu().detach().numpy()])
+                log_loss.append([step, loss.cpu().detach().numpy()])
                 logging.info("step: {}, loss: {}".format(step, loss.item()))
 
                 if step >= self.config.training.n_iters:
                     return 0
                 #8. evaluation
-                if step % 1000 == 0:
+                if step % 100 == 0:
                     score.eval()
                     try:
                         test_X, test_y = next(test_iter)
@@ -204,8 +210,18 @@ class AnnealRunner():
                         test_dsm_loss = anneal_dsm_score_estimation(score, test_X, test_labels, sigmas,
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
-                    self.logging(logging_loss)
-                    self.log_images(score, sigmas, step)
+                    self.log_parameters(log_loss)
+
+                    image_folder = os.path.join(self.args.log, 'images')
+                    if not os.path.exists(image_folder):
+                        os.makedirs(image_folder)
+
+                    grid_size = 4
+                    samples = torch.rand(grid_size ** 2, 3, 32, 32, device=self.config.device)
+                    samples_outputs = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)[0]
+                    image_grid = make_grid(samples_outputs, nrow=grid_size)
+                    save_image(image_grid, os.path.join(image_folder, 'image_{:06d}.png'.format(step)))
+                    #self.log_images(score, sigmas, step)
                 #9. save model
                 if step % self.config.training.snapshot_freq == 0:
                     states = [
@@ -242,7 +258,7 @@ class AnnealRunner():
                 step_size = step_lr * (sigma / sigmas[-1]) ** 2
                 for s in range(n_steps_each):
                     images.append(torch.clamp(x_mod, 0.0, 1.0).to('cpu'))
-                    noise = torch.randn_like(x_mod) * np.sqrt(step_size * 2)
+                    noise = torch.randn_like(x_mod) * np.sqrt(step_size.detach().cpu().numpy() * 2)
                     grad = scorenet(x_mod, labels)
                     x_mod = x_mod + step_size * grad + noise
                     # print("class: {}, step_size: {}, mean {}, max {}".format(c, step_size, grad.abs().mean(),

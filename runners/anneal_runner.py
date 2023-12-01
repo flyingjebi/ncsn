@@ -42,12 +42,23 @@ class AnnealRunner():
         image = lam + (1 - 2 * lam) * image
         return torch.log(image) - torch.log1p(-image)
 
-    def logging(self):
-        return
+    def logging(self, loss, step):
+        x_values, y_values = zip(*loss)
+        plt.plot(x_values, y_values, marker=',')
+        plt.xlabel('X-axis label')
+        plt.ylabel('Y-axis label')
+        plt.title('Your Graph Title')
+        plot_path = os.path.join(self.args.log, 'plot_{}.png'.format(step))
+        plt.savefig(plot_path)
+        # save csv file
+        csv_path = os.path.join(self.args.log, 'logging_loss.csv')
+        with open(csv_path, 'w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            for row in loss:
+                writer.writerow(row)
 
     def train(self):
         logging_loss = []
-
         #1. whether execute horizontal flip
         if self.config.data.random_flip is False:
             tran_transform = test_transform = transforms.Compose([
@@ -107,7 +118,7 @@ class AnnealRunner():
     
         dataloader = DataLoader(dataset, batch_size=self.config.training.batch_size, shuffle=True, num_workers=2)
         test_loader = DataLoader(test_dataset, batch_size=self.config.training.batch_size, shuffle=True,
-                                 num_workers=4, drop_last=True)
+                                 num_workers=2, drop_last=True)
         test_iter = iter(test_loader)
         self.config.input_dim = self.config.data.image_size ** 2 * self.config.data.channels
 
@@ -181,19 +192,7 @@ class AnnealRunner():
                         test_dsm_loss = anneal_dsm_score_estimation(score, test_X, test_labels, sigmas,
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
-                    x_values, y_values = zip(*logging_loss)
-                    plt.plot(x_values, y_values, marker='o')
-                    plt.xlabel('X-axis label')
-                    plt.ylabel('Y-axis label')
-                    plt.title('Your Graph Title')
-                    plot_path = os.path.join(self.args.log, 'plot_{}.png'.format(step))
-                    plt.savefig(plot_path)
-                    # save csv file
-                    csv_path = os.path.join(self.args.log, 'logging_loss.csv')
-                    with open(csv_path, 'w', newline='') as csvfile:
-                        writer = csv.writer(csvfile)
-                        for row in logging_loss:
-                            writer.writerow(row)
+                    logging(logging_loss, step)
 
                 if step % self.config.training.snapshot_freq == 0:
                     states = [
@@ -348,7 +347,7 @@ class AnnealRunner():
                                  transforms.ToTensor(),
                              ]), download=True)
 
-            dataloader = DataLoader(dataset, batch_size=20, shuffle=True, num_workers=4)
+            dataloader = DataLoader(dataset, batch_size=20, shuffle=True, num_workers=2)
             refer_image, _ = next(iter(dataloader))
 
             samples = torch.rand(20, 20, 3, self.config.data.image_size, self.config.data.image_size,
@@ -385,7 +384,7 @@ class AnnealRunner():
                 dataset = SVHN(os.path.join(self.args.run, 'datasets', 'svhn'), split='train', download=True,
                                transform=transform)
 
-            dataloader = DataLoader(dataset, batch_size=20, shuffle=True, num_workers=4)
+            dataloader = DataLoader(dataset, batch_size=20, shuffle=True, num_workers=2)
             data_iter = iter(dataloader)
             refer_image, _ = next(data_iter)
 

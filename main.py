@@ -29,7 +29,7 @@ def parse_args_and_config():
     run_id = str(os.getpid())
     run_time = time.strftime('%Y-%b-%d-%H-%M-%S')
     # args.doc = '_'.join([args.doc, run_id, run_time])
-    args.log = os.path.join('/content/ncsn/', args.run, 'logs', args.doc)
+    args.log = os.path.join('/content/drive/MyDrive/sangmin/NCSN/ncsn/', args.run, 'logs', args.doc)
 
     # parse config file
     if not args.test:

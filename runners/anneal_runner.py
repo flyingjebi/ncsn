@@ -48,7 +48,7 @@ class AnnealRunner():
         plt.xlabel('X-axis label')
         plt.ylabel('Y-axis label')
         plt.title('Your Graph Title')
-        plot_path = os.path.join(self.args.log, 'plot_{}.png'.format(step))
+        plot_path = os.path.join(self.args.log, 'plot_{:06}.png'.format(step))
         plt.savefig(plot_path)
         # save csv file
         csv_path = os.path.join(self.args.log, 'logging_loss.csv')
@@ -173,7 +173,7 @@ class AnnealRunner():
                 if step >= self.config.training.n_iters:
                     return 0
 
-                if step % 100 == 0:
+                if step % 1000 == 0:
                     score.eval()
                     try:
                         test_X, test_y = next(test_iter)
@@ -199,7 +199,7 @@ class AnnealRunner():
                         score.state_dict(),
                         optimizer.state_dict(),
                     ]
-                    torch.save(states, os.path.join(self.args.log, 'checkpoint_{}.pth'.format(step)))
+                    torch.save(states, os.path.join(self.args.log, 'checkpoint_{:06}.pth'.format(step)))
                     torch.save(states, os.path.join(self.args.log, 'checkpoint.pth'))
 
     def Langevin_dynamics(self, x_mod, scorenet, n_steps=200, step_lr=0.00005):

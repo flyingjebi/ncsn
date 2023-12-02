@@ -59,20 +59,16 @@ class AnnealRunner():
                 writer.writerow(row)
         logging.info("log saved")
 
-
     def log_images(self, score, sigmas, step):
         image_folder = os.path.join(self.args.log, 'images')
         if not os.path.exists(image_folder):
             os.makedirs(image_folder)
 
         grid_size = 4
-
         samples = torch.rand(grid_size ** 2, 3, 32, 32, device=self.config.device)
-        samples_outputs = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)[0]
-        image_grid = make_grid(samples_outputs, nrow=grid_size)
-        save_image(image_grid, os.path.join(self.args.image_folder, 'image_{:4d}.png'.format(step)))
-
-
+        samples_outputs = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)
+        image_grid = make_grid(samples_outputs, nrow=4)
+        save_image(image_grid, os.path.join(image_folder, 'image_{:06d}.png'.format(step)))
         
 
     def train(self):
@@ -158,7 +154,7 @@ class AnnealRunner():
             optimizer.load_state_dict(states[1])
         
         #6. default settings
-        step = 0
+        step = 135000
         sigmas = torch.tensor(
             np.exp(np.linspace(np.log(self.config.model.sigma_begin), np.log(self.config.model.sigma_end),
                                self.config.model.num_classes))).float().to(self.config.device)
@@ -185,13 +181,14 @@ class AnnealRunner():
                 optimizer.step()
 
                 tb_logger.add_scalar('loss', loss, global_step=step)
-                log_loss.append([step, loss.cpu().detach().numpy()])
                 logging.info("step: {}, loss: {}".format(step, loss.item()))
 
                 if step >= self.config.training.n_iters:
                     return 0
+                if step % 10 == 0:
+                    log_loss.append([step, loss.cpu().detach().numpy()])
                 #8. evaluation
-                if step % 100 == 0:
+                if step % 1000 == 0:
                     score.eval()
                     try:
                         test_X, test_y = next(test_iter)
@@ -211,17 +208,7 @@ class AnnealRunner():
                                                                     self.config.training.anneal_power)
                     tb_logger.add_scalar('test_dsm_loss', test_dsm_loss, global_step=step)
                     self.log_parameters(log_loss)
-
-                    image_folder = os.path.join(self.args.log, 'images')
-                    if not os.path.exists(image_folder):
-                        os.makedirs(image_folder)
-
-                    grid_size = 4
-                    samples = torch.rand(grid_size ** 2, 3, 32, 32, device=self.config.device)
-                    samples_outputs = self.anneal_Langevin_dynamics(samples, score, sigmas, 100, 0.00002)[0]
-                    image_grid = make_grid(samples_outputs, nrow=grid_size)
-                    save_image(image_grid, os.path.join(image_folder, 'image_{:06d}.png'.format(step)))
-                    #self.log_images(score, sigmas, step)
+                    self.log_images(score, sigmas, step)
                 #9. save model
                 if step % self.config.training.snapshot_freq == 0:
                     states = [
@@ -257,14 +244,15 @@ class AnnealRunner():
                 labels = labels.long()
                 step_size = step_lr * (sigma / sigmas[-1]) ** 2
                 for s in range(n_steps_each):
-                    images.append(torch.clamp(x_mod, 0.0, 1.0).to('cpu'))
+                    # images.append(torch.clamp(x_mod, 0.0, 1.0).to('cpu'))
                     noise = torch.randn_like(x_mod) * np.sqrt(step_size.detach().cpu().numpy() * 2)
                     grad = scorenet(x_mod, labels)
                     x_mod = x_mod + step_size * grad + noise
                     # print("class: {}, step_size: {}, mean {}, max {}".format(c, step_size, grad.abs().mean(),
                     #                                                          grad.abs().max()))
+                images.append(torch.clamp(x_mod, 0.0, 1.0).to('cpu'))
 
-            return images
+            return images[-1]
 
     def test(self):
         states = torch.load(os.path.join(self.args.log, 'checkpoint.pth'), map_location=self.config.device)

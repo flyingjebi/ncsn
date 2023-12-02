@@ -154,7 +154,7 @@ class AnnealRunner():
             optimizer.load_state_dict(states[1])
         
         #6. default settings
-        step = 135000
+        step = 140000
         sigmas = torch.tensor(
             np.exp(np.linspace(np.log(self.config.model.sigma_begin), np.log(self.config.model.sigma_end),
                                self.config.model.num_classes))).float().to(self.config.device)
